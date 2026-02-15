@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenCode Config (Fallback)",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "theme": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "small_model": {
+      "type": "string"
+    },
+    "plugin": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "server": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "integer"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "cors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "tui": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "keybinds": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

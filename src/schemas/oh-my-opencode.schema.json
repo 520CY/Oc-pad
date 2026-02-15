@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Oh-My-OpenCode Config (Fallback)",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "agents": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "disabled_hooks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
