@@ -92,7 +92,7 @@ export function ProfilesPage() {
           </CardContent>
         </Card>
       ) : null}
-      <div className="grid h-full min-h-0 grid-cols-[320px_1fr] gap-4">
+      <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <ProfileList
           profiles={profiles}
           loading={loading}

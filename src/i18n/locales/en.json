@@ -14,7 +14,10 @@
   "sidebar": {
     "profiles": "Profiles",
     "path": "Path & Env",
-    "settings": "Settings"
+    "settings": "Settings",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "closeMobile": "Close navigation"
   },
   "common": {
     "close": "Close",
@@ -61,7 +64,10 @@
     "accentTheme": {
       "violet": "Violet",
       "teal": "Teal",
-      "amber": "Amber"
+      "amber": "Amber",
+      "rose": "Rose",
+      "cyan": "Cyan",
+      "lime": "Lime"
     },
     "previewTitle": "Theme preview",
     "previewDescription": "Live preview for current theme and accent color",

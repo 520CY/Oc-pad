@@ -24,6 +24,7 @@ export function SettingsPage({
   const currentLanguage = normalizeLanguage(i18n.language);
   const modeLabel = t(`settingsPage.themeMode.${themeMode}`);
   const accentLabel = t(`settingsPage.accentTheme.${accentTheme}`);
+  const accentOptions: AccentTheme[] = ["violet", "teal", "amber", "rose", "cyan", "lime"];
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -70,11 +71,29 @@ export function SettingsPage({
               value={accentTheme}
               onChange={(event) => onAccentThemeChange(event.target.value as AccentTheme)}
             >
-              <option value="violet">{t("settingsPage.accentTheme.violet")}</option>
-              <option value="teal">{t("settingsPage.accentTheme.teal")}</option>
-              <option value="amber">{t("settingsPage.accentTheme.amber")}</option>
+              {accentOptions.map((option) => (
+                <option key={option} value={option}>
+                  {t(`settingsPage.accentTheme.${option}`)}
+                </option>
+              ))}
             </Select>
             <p className="text-xs text-muted-foreground">{t("settingsPage.accentThemeHelp")}</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {accentOptions.map((option) => (
+                <button
+                  key={`accent-${option}`}
+                  type="button"
+                  className="rounded-md border border-border bg-card p-2 text-left transition-colors hover:border-primary/55"
+                  onClick={() => onAccentThemeChange(option)}
+                >
+                  <div
+                    className="mb-1 h-5 rounded"
+                    style={getAccentSwatch(option)}
+                  />
+                  <p className="text-xs font-medium">{t(`settingsPage.accentTheme.${option}`)}</p>
+                </button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -126,6 +145,25 @@ export function SettingsPage({
       </Card>
     </div>
   );
+}
+
+function getAccentSwatch(theme: AccentTheme): { background: string } {
+  if (theme === "teal") {
+    return { background: "linear-gradient(90deg, #14b8a6, #0ea5a0)" };
+  }
+  if (theme === "amber") {
+    return { background: "linear-gradient(90deg, #f59e0b, #eab308)" };
+  }
+  if (theme === "rose") {
+    return { background: "linear-gradient(90deg, #f43f5e, #e11d48)" };
+  }
+  if (theme === "cyan") {
+    return { background: "linear-gradient(90deg, #06b6d4, #0891b2)" };
+  }
+  if (theme === "lime") {
+    return { background: "linear-gradient(90deg, #84cc16, #65a30d)" };
+  }
+  return { background: "linear-gradient(90deg, #7c3aed, #6d28d9)" };
 }
 
 function normalizeLanguage(language: string): "zh-CN" | "zh-TW" | "en" {

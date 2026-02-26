@@ -1,6 +1,6 @@
 export type AppPage = "profiles" | "path" | "settings";
 export type ThemeMode = "system" | "light" | "dark";
-export type AccentTheme = "violet" | "teal" | "amber";
+export type AccentTheme = "violet" | "teal" | "amber" | "rose" | "cyan" | "lime";
 
 export interface Profile {
   id: string;

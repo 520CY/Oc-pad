@@ -4,7 +4,14 @@ const THEME_MODE_STORAGE_KEY = "oc-pad.themeMode";
 const ACCENT_THEME_STORAGE_KEY = "oc-pad.accentTheme";
 
 const THEME_CLASSNAMES = ["light", "dark"] as const;
-const ACCENT_CLASSNAMES = ["theme-violet", "theme-teal", "theme-amber"] as const;
+const ACCENT_CLASSNAMES = [
+  "theme-violet",
+  "theme-teal",
+  "theme-amber",
+  "theme-rose",
+  "theme-cyan",
+  "theme-lime",
+] as const;
 
 export function getStoredThemeMode(): ThemeMode {
   if (typeof window === "undefined") {
@@ -22,7 +29,14 @@ export function getStoredAccentTheme(): AccentTheme {
     return "violet";
   }
   const saved = window.localStorage.getItem(ACCENT_THEME_STORAGE_KEY);
-  if (saved === "violet" || saved === "teal" || saved === "amber") {
+  if (
+    saved === "violet" ||
+    saved === "teal" ||
+    saved === "amber" ||
+    saved === "rose" ||
+    saved === "cyan" ||
+    saved === "lime"
+  ) {
     return saved;
   }
   return "violet";

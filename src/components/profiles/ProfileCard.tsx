@@ -32,29 +32,35 @@ export function ProfileCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer border transition-colors hover:border-primary/50",
-        selected && "border-primary",
-        profile.active && "bg-primary/5",
+        "cursor-pointer border transition-all duration-200 hover:border-primary/50",
+        selected && "border-primary shadow-sm",
+        isActive && "border-l-4 border-l-primary bg-primary/5 pl-[calc(1rem-3px)]",
       )}
       onClick={() => onSelect(profile.id)}
     >
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{profile.name}</p>
+            <p className={cn("truncate text-sm font-semibold", isActive && "text-primary")}>
+              {profile.name}
+            </p>
             {profile.description ? (
               <p className="line-clamp-2 text-xs text-muted-foreground">{profile.description}</p>
             ) : (
               <p className="text-xs text-muted-foreground">{t("profiles.card.noDescription")}</p>
             )}
           </div>
-          {profile.active ? <Badge>{t("profiles.card.active")}</Badge> : null}
+          {isActive ? (
+            <Badge variant="default" className="shadow-none">
+              {t("profiles.card.active")}
+            </Badge>
+          ) : null}
         </div>
 
         {profile.tags.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {profile.tags.map((tag) => (
-              <Badge key={tag} variant="outline">
+              <Badge key={tag} variant="outline" className="bg-background/50">
                 {tag}
               </Badge>
             ))}

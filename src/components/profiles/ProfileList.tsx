@@ -46,7 +46,7 @@ export function ProfileList({
   }, [keyword, profiles]);
 
   return (
-    <Card className="flex h-full min-h-0 flex-col">
+    <Card className="flex h-[40vh] min-h-0 flex-col xl:h-full">
       <CardHeader className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base">{t("profiles.list.title")}</CardTitle>

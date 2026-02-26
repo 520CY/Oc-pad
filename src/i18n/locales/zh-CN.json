@@ -14,7 +14,10 @@
   "sidebar": {
     "profiles": "Profiles",
     "path": "Path & Env",
-    "settings": "Settings"
+    "settings": "Settings",
+    "collapse": "收起侧边栏",
+    "expand": "展开侧边栏",
+    "closeMobile": "关闭导航"
   },
   "common": {
     "close": "关闭",
@@ -45,7 +48,10 @@
     "accentTheme": {
       "violet": "紫色",
       "teal": "青绿",
-      "amber": "琥珀"
+      "amber": "琥珀",
+      "rose": "玫红",
+      "cyan": "青蓝",
+      "lime": "青柠"
     },
     "previewTitle": "主题预览",
     "previewDescription": "当前主题与强调色的实时效果",
