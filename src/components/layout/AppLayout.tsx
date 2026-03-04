@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Menu, PanelLeft, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -41,7 +41,7 @@ export function AppLayout({ activePage, onSelectPage, children }: AppLayoutProps
       />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4 lg:p-6">
-        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-card/55 px-2.5 py-2 backdrop-blur">
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-card/55 px-2.5 py-2 backdrop-blur md:hidden">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -52,16 +52,7 @@ export function AppLayout({ activePage, onSelectPage, children }: AppLayoutProps
             >
               <Menu className="h-4 w-4" />
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="hidden md:inline-flex"
-              onClick={() => setSidebarCollapsed((value) => !value)}
-            >
-              <PanelLeft className="h-4 w-4" />
-              {sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
-            </Button>
+
           </div>
           {mobileSidebarOpen ? (
             <Button
