@@ -1,13 +1,15 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Copy, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { invoke } from "@tauri-apps/api/core";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { ComboboxGroup, ModelCombobox } from "@/components/ui/model-combobox";
 import { Textarea } from "@/components/ui/textarea";
+import { PRESET_MODEL_GROUPS } from "@/lib/preset-models";
 import { JsonObject, JsonValue, parseConfigText, stringifyConfigObject } from "@/lib/schema/normalize";
 import { cn } from "@/lib/utils";
 import { CreateProfileInput, Profile, UpdateProfileInput } from "@/types";
@@ -69,6 +71,19 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
     prometheus: true,
     atlas: true,
   });
+  const [modeSelectedProviders, setModeSelectedProviders] = useState<Record<CoreMode, string>>({
+    sisyphus: "",
+    hephaestus: "",
+    prometheus: "",
+    atlas: "",
+  });
+  const [authProviders, setAuthProviders] = useState<{ id: string; auth_type: string }[]>([]);
+
+  useEffect(() => {
+    invoke<{ id: string; auth_type: string }[]>("read_auth_providers")
+      .then((entries) => setAuthProviders(entries))
+      .catch(() => setAuthProviders([]));
+  }, []);
 
   const onFieldChange =
     (field: keyof ProfileFormValues) =>
@@ -81,6 +96,7 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
     };
 
   const providerKeys = useMemo(() => getProviderKeys(values.opencodeConfigObject), [values.opencodeConfigObject]);
+  const firstProviderKey = providerKeys[0];
   const modelCandidates = useMemo(
     () => collectLinkedModels(values.opencodeConfigObject),
     [values.opencodeConfigObject],
@@ -106,9 +122,28 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
     if (!values.ohmyocEnabled) {
       return formatPreviewJson({});
     }
-    const synced = syncOhmyCoreModes(values.ohmyocConfigObject, modelCandidates, preferredModel, true);
+    const synced = syncOhmyCoreModes(values.ohmyocConfigObject, modelCandidates, preferredModel, true, firstProviderKey);
     return formatPreviewJson(synced);
-  }, [modelCandidates, preferredModel, values.ohmyocConfigObject, values.ohmyocEnabled]);
+  }, [firstProviderKey, modelCandidates, preferredModel, values.ohmyocConfigObject, values.ohmyocEnabled]);
+  const defaultModelGroups = useMemo(
+    () => buildModelComboboxGroups(modelSelectOptions, t("profiles.form.configuredModels")),
+    [modelSelectOptions, t],
+  );
+  const providerComboboxGroups = useMemo<ComboboxGroup[]>(() => {
+    const groups: ComboboxGroup[] = [
+      { label: t("profiles.form.opencodeProviders"), options: providerKeys, badge: "opencode" },
+    ];
+    const authKeys = authProviders.map((p) => p.id);
+    if (authKeys.length > 0) {
+      groups.push({ label: t("profiles.form.authProviders"), options: authKeys, badge: "auth" });
+    }
+    return groups;
+  }, [providerKeys, authProviders, t]);
+  const selectedProviderIsAuth = useMemo(
+    () => authProviders.some((p) => p.id === selectedProviderKey),
+    [authProviders, selectedProviderKey],
+  );
+
   const previewDisabled = disabled || (previewTab === "ohmy" && !values.ohmyocEnabled);
 
   useEffect(() => {
@@ -131,16 +166,37 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
     if (providerKeys.length === 0) {
       return;
     }
-    if (!providerKeys.includes(selectedProviderKey)) {
+    const authKeys = authProviders.map((p) => p.id);
+    if (!providerKeys.includes(selectedProviderKey) && !authKeys.includes(selectedProviderKey)) {
       setSelectedProviderKey(providerKeys[0]);
     }
-  }, [providerKeys, selectedProviderKey]);
+  }, [providerKeys, authProviders, selectedProviderKey]);
+
+  useEffect(() => {
+    if (!values.ohmyocEnabled) return;
+    const agents = asObject(values.ohmyocConfigObject.agents);
+    setModeSelectedProviders((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const mode of CORE_MODES) {
+        const modeObj = asObject(agents[mode]);
+        const modelVal = readString(modeObj.model);
+        const parsed = parseProviderModel(modelVal);
+        const resolved = parsed.provider || providerKeys[0] || "";
+        if (next[mode] !== resolved) {
+          next[mode] = resolved;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [values.ohmyocEnabled, values.ohmyocConfigObject, providerKeys]);
 
   useEffect(() => {
     if (!values.ohmyocEnabled) {
       return;
     }
-    const synced = syncOhmyCoreModes(values.ohmyocConfigObject, modelCandidates, preferredModel, true);
+    const synced = syncOhmyCoreModes(values.ohmyocConfigObject, modelCandidates, preferredModel, true, firstProviderKey);
     if (jsonEquals(synced, values.ohmyocConfigObject)) {
       return;
     }
@@ -152,6 +208,7 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
     modelCandidates,
     onChange,
     preferredModel,
+    firstProviderKey,
     values,
     values.ohmyocConfigObject,
     values.ohmyocEnabled,
@@ -163,8 +220,9 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
 
     const nextCandidates = collectLinkedModels(nextOpencode);
     const nextPreferredModel = getPreferredModel(nextOpencode, nextCandidates);
+    const nextProviderKeys = getProviderKeys(nextOpencode);
     const nextOhmy = values.ohmyocEnabled
-      ? syncOhmyCoreModes(values.ohmyocConfigObject, nextCandidates, nextPreferredModel, true)
+      ? syncOhmyCoreModes(values.ohmyocConfigObject, nextCandidates, nextPreferredModel, true, nextProviderKeys[0])
       : values.ohmyocConfigObject;
 
     onChange({
@@ -180,7 +238,7 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
 
     onChange({
       ...values,
-      ohmyocConfigObject: syncOhmyCoreModes(nextOhmy, modelCandidates, preferredModel, true),
+      ohmyocConfigObject: syncOhmyCoreModes(nextOhmy, modelCandidates, preferredModel, true, providerKeys[0]),
     });
   };
 
@@ -209,6 +267,7 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
         modelCandidates,
         preferredModel,
         true,
+        providerKeys[0],
       ),
     });
   };
@@ -306,8 +365,9 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
       if (tab === "opencode") {
         const nextCandidates = collectLinkedModels(parsedObject);
         const nextPreferredModel = getPreferredModel(parsedObject, nextCandidates);
+        const nextProviderKeys = getProviderKeys(parsedObject);
         const nextOhmy = values.ohmyocEnabled
-          ? syncOhmyCoreModes(values.ohmyocConfigObject, nextCandidates, nextPreferredModel, true)
+          ? syncOhmyCoreModes(values.ohmyocConfigObject, nextCandidates, nextPreferredModel, true, nextProviderKeys[0])
           : values.ohmyocConfigObject;
 
         onChange({
@@ -318,7 +378,7 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
       } else {
         onChange({
           ...values,
-          ohmyocConfigObject: syncOhmyCoreModes(parsedObject, modelCandidates, preferredModel, true),
+          ohmyocConfigObject: syncOhmyCoreModes(parsedObject, modelCandidates, preferredModel, true, providerKeys[0]),
         });
       }
 
@@ -471,6 +531,11 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
             <span className="rounded-full border border-border bg-background px-2 py-0.5">
               {t("profiles.form.providerCount", { count: providerKeys.length })}
             </span>
+            {authProviders.length > 0 && (
+              <span className="rounded-full border border-border bg-background px-2 py-0.5">
+                {t("profiles.form.authProviderCount", { count: authProviders.length })}
+              </span>
+            )}
             <span className="rounded-full border border-border bg-background px-2 py-0.5">
               {t("profiles.form.modelCandidateCount", { count: modelSelectOptions.length })}
             </span>
@@ -490,64 +555,68 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
               <Label htmlFor="provider-select" className={FIELD_LABEL_CLASS} title={t("profiles.form.providerHelp")}>
                 {t("profiles.form.provider")}
               </Label>
-              <Select
+              <ModelCombobox
                 id="provider-select"
                 value={selectedProviderKey}
                 disabled={disabled || providerKeys.length === 0}
-                onChange={(event) => setSelectedProviderKey(event.target.value)}
-              >
-                {providerKeys.map((providerKey) => (
-                  <option key={providerKey} value={providerKey}>
-                    {providerKey}
-                  </option>
-                ))}
-              </Select>
+                placeholder={t("profiles.form.comboboxPlaceholder")}
+                groups={providerComboboxGroups}
+                onChange={(nextValue) => setSelectedProviderKey(nextValue)}
+              />
               <p className="text-xs text-muted-foreground">{t("profiles.form.providerHelp")}</p>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="provider-endpoint" className={FIELD_LABEL_CLASS}>
-                {t("profiles.form.endpoint")}
-              </Label>
-              <Input
-                id="provider-endpoint"
-                value={readString(providerView.options.baseURL)}
-                disabled={disabled}
-                placeholder={t("profiles.form.endpointPlaceholder")}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  updateOpencode((draft) => {
-                    const provider = ensureProvider(draft, selectedProviderKey);
-                    const options = ensureObjectField(provider, "options");
-                    setMaybeStringField(options, "baseURL", nextValue);
-                  });
-                }}
-              />
-              <p className="text-xs text-muted-foreground">{t("profiles.form.endpointHelp")}</p>
-            </div>
+            {selectedProviderIsAuth ? (
+              <p className="rounded-md border border-border/60 bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+                {t("profiles.form.authProviderReadOnly")}
+              </p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="provider-endpoint" className={FIELD_LABEL_CLASS}>
+                    {t("profiles.form.endpoint")}
+                  </Label>
+                  <Input
+                    id="provider-endpoint"
+                    value={readString(providerView.options.baseURL)}
+                    disabled={disabled}
+                    placeholder={t("profiles.form.endpointPlaceholder")}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      updateOpencode((draft) => {
+                        const provider = ensureProvider(draft, selectedProviderKey);
+                        const options = ensureObjectField(provider, "options");
+                        setMaybeStringField(options, "baseURL", nextValue);
+                      });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("profiles.form.endpointHelp")}</p>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="provider-api-key" className={FIELD_LABEL_CLASS}>
-                {t("profiles.form.apiKey")}
-              </Label>
-              <Input
-                id="provider-api-key"
-                type="password"
-                autoComplete="off"
-                value={readString(providerView.options.apiKey)}
-                disabled={disabled}
-                placeholder={t("profiles.form.apiKeyPlaceholder")}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  updateOpencode((draft) => {
-                    const provider = ensureProvider(draft, selectedProviderKey);
-                    const options = ensureObjectField(provider, "options");
-                    setMaybeStringField(options, "apiKey", nextValue);
-                  });
-                }}
-              />
-              <p className="text-xs text-muted-foreground">{t("profiles.form.apiKeyHelp")}</p>
-            </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="provider-api-key" className={FIELD_LABEL_CLASS}>
+                    {t("profiles.form.apiKey")}
+                  </Label>
+                  <Input
+                    id="provider-api-key"
+                    type="password"
+                    autoComplete="off"
+                    value={readString(providerView.options.apiKey)}
+                    disabled={disabled}
+                    placeholder={t("profiles.form.apiKeyPlaceholder")}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      updateOpencode((draft) => {
+                        const provider = ensureProvider(draft, selectedProviderKey);
+                        const options = ensureObjectField(provider, "options");
+                        setMaybeStringField(options, "apiKey", nextValue);
+                      });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("profiles.form.apiKeyHelp")}</p>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="space-y-4 rounded-lg border border-border/70 bg-background/70 p-3.5">
@@ -578,33 +647,16 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
               <Label htmlFor="default-model" className={FIELD_LABEL_CLASS}>
                 {t("profiles.form.defaultModel")}
               </Label>
-              <Select
+              <ModelCombobox
                 id="default-model"
                 value={defaultModel}
-                disabled={disabled || modelSelectOptions.length === 0}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
+                disabled={disabled}
+                placeholder={t("profiles.form.comboboxPlaceholder")}
+                groups={defaultModelGroups}
+                onChange={(nextValue) => {
                   updateOpencode((draft) => setMaybeStringField(draft, "model", nextValue));
                 }}
-              >
-                <option value="">{t("profiles.form.selectModelPlaceholder")}</option>
-                {modelSelectOptions.map((modelId) => (
-                  <option key={modelId} value={modelId}>
-                    {modelId}
-                  </option>
-                ))}
-              </Select>
-              {modelSelectOptions.length === 0 ? (
-                <Input
-                  value={defaultModel}
-                  disabled={disabled}
-                  placeholder={t("profiles.form.defaultModelPlaceholder")}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    updateOpencode((draft) => setMaybeStringField(draft, "model", nextValue));
-                  }}
-                />
-              ) : null}
+              />
               <p className="text-xs text-muted-foreground">{t("profiles.form.defaultModelHelp")}</p>
             </div>
 
@@ -612,22 +664,16 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
               <Label htmlFor="small-model" className={FIELD_LABEL_CLASS}>
                 {t("profiles.form.smallModel")}
               </Label>
-              <Select
+              <ModelCombobox
                 id="small-model"
                 value={smallModel}
                 disabled={disabled}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
+                placeholder={t("profiles.form.comboboxPlaceholder")}
+                groups={defaultModelGroups}
+                onChange={(nextValue) => {
                   updateOpencode((draft) => setMaybeStringField(draft, "small_model", nextValue));
                 }}
-              >
-                <option value="">{t("common.none")}</option>
-                {modelSelectOptions.map((modelId) => (
-                  <option key={`small-${modelId}`} value={modelId}>
-                    {modelId}
-                  </option>
-                ))}
-              </Select>
+              />
               <p className="text-xs text-muted-foreground">{t("profiles.form.smallModelHelp")}</p>
             </div>
 
@@ -685,9 +731,19 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
             {CORE_MODES.map((mode) => {
               const modeConfig = getModeConfig(values.ohmyocConfigObject, mode, preferredModel);
               const modeModel = readString(modeConfig.model);
+              const parsedModeModel = parseProviderModel(modeModel);
+              const modeProviderKey = modeSelectedProviders[mode] || parsedModeModel.provider || providerKeys[0] || "";
+              const modeProviderModels = getModelsForProvider(values.opencodeConfigObject, modeProviderKey);
+              const modeProviderPresetModels = getPresetModelsForProvider(modeProviderKey);
+              const modeProviderModelOptions = uniqueStrings([...modeProviderModels, ...modeProviderPresetModels]);
+              const modeModelGroups = buildProviderModelComboboxGroups(
+                modeProviderModels,
+                modeProviderPresetModels,
+                t("profiles.form.configuredModels"),
+                t("profiles.form.presetModels"),
+              );
               const modeVariant = getModeVariant(modeConfig, mode);
               const modeTemperature = readNumber(modeConfig.temperature);
-              const modeModelOptions = uniqueStrings([modeModel, preferredModel, ...modelSelectOptions]);
               const variantLabel = modeVariant || MODE_DEFAULT_VARIANT[mode];
               const isCollapsed = collapsedModes[mode];
               const temperatureLabel =
@@ -745,27 +801,50 @@ export function ProfileForm({ values, disabled, onChange }: ProfileFormProps) {
                       </Badge>
                     </div>
                   ) : (
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-4">
                       <div className="space-y-1.5">
-                        <Label className={FIELD_LABEL_CLASS}>{t("profiles.form.modeModel")}</Label>
-                        <Select
-                          value={modeModel}
-                          disabled={disabled || modeModelOptions.length === 0}
-                          onChange={(event) => {
-                            const nextValue = event.target.value;
+                        <Label className={FIELD_LABEL_CLASS}>{t("profiles.form.modeProvider")}</Label>
+                        <ModelCombobox
+                          value={modeProviderKey}
+                          disabled={disabled || (providerKeys.length === 0 && authProviders.length === 0)}
+                          placeholder={t("profiles.form.comboboxPlaceholder")}
+                          groups={providerComboboxGroups}
+                          onChange={(nextProvider) => {
+                            setModeSelectedProviders((prev) => ({ ...prev, [mode]: nextProvider }));
+                            const nextConfiguredModels = getModelsForProvider(values.opencodeConfigObject, nextProvider);
+                            const nextPresetModels = getPresetModelsForProvider(nextProvider);
+                            const nextProviderModels = uniqueStrings([...nextConfiguredModels, ...nextPresetModels]);
                             updateOhmy((draft) => {
                               const modeDraft = ensureModeDraft(draft, mode);
-                              setMaybeStringField(modeDraft, "model", nextValue);
+                              if (nextProviderModels.length > 0) {
+                                modeDraft.model = formatProviderModel(nextProvider, nextProviderModels[0]);
+                              } else {
+                                modeDraft.model = "";
+                              }
                             });
                           }}
-                        >
-                          <option value="">{t("profiles.form.selectModelPlaceholder")}</option>
-                          {modeModelOptions.map((modelId) => (
-                            <option key={`${mode}-${modelId}`} value={modelId}>
-                              {modelId}
-                            </option>
-                          ))}
-                        </Select>
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className={FIELD_LABEL_CLASS}>{t("profiles.form.modeModel")}</Label>
+                        <ModelCombobox
+                          id={`${mode}-model`}
+                          value={parsedModeModel.model}
+                          disabled={disabled}
+                          placeholder={t("profiles.form.comboboxPlaceholder")}
+                          groups={modeModelGroups}
+                          onChange={(nextModel) => {
+                            const newValue = formatProviderModel(modeProviderKey, nextModel);
+                            updateOhmy((draft) => {
+                              const modeDraft = ensureModeDraft(draft, mode);
+                              modeDraft.model = newValue;
+                            });
+                          }}
+                        />
+                        {modeProviderModelOptions.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">{t("profiles.form.selectModelPlaceholder")}</p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-1.5">
@@ -1065,6 +1144,7 @@ function syncOhmyCoreModes(
   candidates: string[],
   preferredModel: string,
   createMissing: boolean,
+  firstProviderKey?: string,
 ): JsonObject {
   const next = cloneJsonObject(ohmyConfig);
   const agents = ensureObjectField(next, "agents");
@@ -1078,9 +1158,22 @@ function syncOhmyCoreModes(
 
     const modeDraft = ensureModeDraft(next, mode);
     const currentModel = readString(modeDraft.model);
-    const shouldReplace = !currentModel || (candidates.length > 0 && !candidates.includes(currentModel));
+    const parsedCurrent = parseProviderModel(currentModel);
+    const currentHasProvider = currentModel.includes("/");
+    const bareCurrentModel = parsedCurrent.model;
+
+    const bareCandidates = candidates.map((c) => parseProviderModel(c).model || c);
+    const shouldReplace = !bareCurrentModel || (bareCandidates.length > 0 && !bareCandidates.includes(bareCurrentModel));
+
     if (shouldReplace) {
-      setMaybeStringField(modeDraft, "model", fallbackModel);
+      const bareFallback = parseProviderModel(fallbackModel).model || fallbackModel;
+      const providerForFallback = parsedCurrent.provider || firstProviderKey || "";
+      const resolved = providerForFallback
+        ? formatProviderModel(providerForFallback, bareFallback)
+        : bareFallback;
+      setMaybeStringField(modeDraft, "model", resolved);
+    } else if (!currentHasProvider && bareCurrentModel && firstProviderKey) {
+      modeDraft.model = formatProviderModel(firstProviderKey, bareCurrentModel);
     }
 
     const variantKey = MODE_VARIANT_KEY[mode];
@@ -1178,4 +1271,59 @@ function getModeCardClass(mode: CoreMode): string {
     return "border-cyan-500/30 bg-cyan-500/[0.03]";
   }
   return "border-indigo-500/30 bg-indigo-500/[0.03]";
+}
+
+function formatProviderModel(provider: string, model: string): string {
+  if (!provider || !model) return model;
+  if (model.includes("/")) return model;
+  return `${provider}/${model}`;
+}
+
+function parseProviderModel(value: string): { provider: string; model: string } {
+  const idx = value.indexOf("/");
+  if (idx < 0) return { provider: "", model: value };
+  return { provider: value.slice(0, idx), model: value.slice(idx + 1) };
+}
+
+function getModelsForProvider(opencodeConfig: JsonObject, providerKey: string): string[] {
+  const provider = asObject(opencodeConfig.provider);
+  const entry = asObject(provider[providerKey]);
+  const models = asObject(entry.models);
+  return Object.keys(models).filter((k) => k.trim().length > 0);
+}
+
+function buildModelComboboxGroups(
+  dynamicOptions: string[],
+  configuredLabel: string,
+): ComboboxGroup[] {
+  const groups: ComboboxGroup[] = [];
+  if (dynamicOptions.length > 0) {
+    groups.push({ label: configuredLabel, options: dynamicOptions });
+  }
+  for (const preset of PRESET_MODEL_GROUPS) {
+    groups.push({ label: preset.label, options: preset.models });
+  }
+  return groups;
+}
+
+function getPresetModelsForProvider(providerKey: string): string[] {
+  if (!providerKey) return [];
+  const group = PRESET_MODEL_GROUPS.find((item) => item.provider === providerKey);
+  return group?.models ?? [];
+}
+
+function buildProviderModelComboboxGroups(
+  dynamicOptions: string[],
+  presetOptions: string[],
+  configuredLabel: string,
+  presetLabel: string,
+): ComboboxGroup[] {
+  const groups: ComboboxGroup[] = [];
+  if (dynamicOptions.length > 0) {
+    groups.push({ label: configuredLabel, options: dynamicOptions });
+  }
+  if (presetOptions.length > 0) {
+    groups.push({ label: presetLabel, options: presetOptions });
+  }
+  return groups;
 }

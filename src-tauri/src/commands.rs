@@ -1,6 +1,7 @@
 use tauri::State;
 
 use crate::{
+    config_source,
     db::AppState,
     models::{ActivationResult, CreateProfileInput, Profile, UpdateProfileInput},
     profile_service,
@@ -81,6 +82,11 @@ pub fn get_project_root(state: State<'_, AppState>) -> Result<Option<String>, St
 #[tauri::command]
 pub fn set_project_root(state: State<'_, AppState>, path: Option<String>) -> Result<(), String> {
     with_conn(&state, |conn| profile_service::set_project_root(conn, path))
+}
+
+#[tauri::command]
+pub fn read_auth_providers() -> Result<Vec<config_source::AuthProviderEntry>, String> {
+    config_source::read_auth_providers()
 }
 
 fn with_conn<T>(

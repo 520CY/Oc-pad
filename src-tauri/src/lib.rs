@@ -32,7 +32,8 @@ pub fn run() {
             commands::get_default_config_dir,
             commands::bootstrap_system_config,
             commands::get_project_root,
-            commands::set_project_root
+            commands::set_project_root,
+            commands::read_auth_providers
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

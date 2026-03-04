@@ -7,6 +7,50 @@ use serde_json::Value;
 
 use crate::config_writer;
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AuthProviderEntry {
+    pub id: String,
+    pub auth_type: String,
+}
+
+fn auth_json_path() -> Result<PathBuf, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let local_app_data = env::var("LOCALAPPDATA")
+            .map_err(|err| format!("failed to resolve LOCALAPPDATA: {err}"))?;
+        Ok(PathBuf::from(local_app_data).join("opencode").join("auth.json"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let home = env::var("HOME")
+            .map_err(|err| format!("failed to resolve HOME for auth.json path: {err}"))?;
+        Ok(PathBuf::from(home).join(".local").join("share").join("opencode").join("auth.json"))
+    }
+}
+
+pub fn read_auth_providers() -> Result<Vec<AuthProviderEntry>, String> {
+    let path = auth_json_path()?;
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|err| format!("failed to read auth.json {}: {err}", path.display()))?;
+    let parsed: Value = serde_json::from_str(&content)
+        .map_err(|err| format!("failed to parse auth.json: {err}"))?;
+    let obj = parsed.as_object().ok_or("auth.json root is not an object")?;
+    Ok(obj
+        .iter()
+        .map(|(k, v)| AuthProviderEntry {
+            id: k.clone(),
+            auth_type: v
+                .get("type")
+                .and_then(|t| t.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+        })
+        .collect())
+}
+
 const OPENCODE_CANDIDATES: &[&str] = &["opencode.jsonc", "opencode.json"];
 const OHMY_CANDIDATES: &[&str] = &["oh-my-opencode.jsonc", "oh-my-opencode.json"];
 
